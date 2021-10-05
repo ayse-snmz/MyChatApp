@@ -1,0 +1,141 @@
+﻿@{
+    var messages = ViewBag.Messages as List<Message>;
+    var current = ViewBag.CurrentUser as AppUser;
+    var username = current.UserName;
+    var target = ViewBag.TargetUser as AppUser;
+    var targetname = target.UserName;
+}
+
+<style>
+    .chat {
+        max-height: 65vh;
+        overflow-y: scroll;
+        border: 1px solid silver;
+    }
+
+        .chat::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        .chat::-webkit-scrollbar-thumb {
+            box-shadow: inset 0 0 6px rgba(0,0,0,.3);
+            background-color: silver;
+        }
+</style>
+
+<h2> @targetname Kişisiyle Görüşmeleriniz</h2>
+<div class="jumbotron bg-light chat" id="chat">
+    @if (messages != null)
+    {
+
+        @foreach (var message in messages.OrderBy(m => m.Datetime))
+        {
+            var position = username == message.UserName ? "text-right" : "text-left";
+            var alert = username == message.UserName ? "alert-info" : "alert-secondary";
+            <div class="row">
+                <div class="col-md-12 @position">
+                    <small class="text-dark">@message.UserName</small>
+                    <div class="alert mb-0 @alert" role="alert">
+                        <span class="d-block">@message.Descricao</span>
+                    </div>
+                    <small class="text-info">@message.Datetime.ToString("dd/MM HH:mm")</small>
+                </div>
+            </div>
+        }
+    }
+</div>
+<form asp-action="SendMessage" id="SendMessageForm" class="row">
+    <div class="input-group mb-4 col-md-12">
+        <input name="Descricao" id="MessageText" class="form-control" />
+        <button type="submit" id="submitBtn" class="btn btn-info">Mesaj Gönder</button>
+    </div>
+</form>
+
+@section scripts
+{
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/microsoft-signalr/3.1.7/signalr.min.js"></script>
+    <script>
+        var username = "@username";
+        var targetname = "@targetname";
+
+        var objDiv = document.getElementById("chat");
+        objDiv.scrollTop = objDiv.scrollHeight;
+
+        var connection = new signalR.HubConnectionBuilder().withUrl("/chathub").build();
+
+        function formatDate(dateString) {
+            var date = new Date(Date.parse(dateString))
+            var dateStr =
+                ("00" + date.getDate()).slice(-2) + "/" +
+                ("00" + (date.getMonth() + 1)).slice(-2) + " " +
+                ("00" + date.getHours()).slice(-2) + ":" +
+                ("00" + date.getMinutes()).slice(-2)
+            return dateStr
+        }
+
+        connection.on("PrivateMessage", (data) => {
+            var position = data.userName === username ? "text-right" : "text-left";
+            var alert = data.userName === username ? "alert-info" : "alert-secondary";
+
+            var message = document.createElement("div");
+            message.className = "row";
+
+            var messageCol = document.createElement("div");
+            messageCol.classList = "col-md-12 " + position;
+
+            var messageUser = document.createElement("small");
+            messageUser.className = "text-dark";
+            messageUser.textContent = data.userName;
+
+            var messageAlert = document.createElement("div");
+            messageAlert.classList = "alert mb-0 " + alert;
+
+            var messageAlertMessage = document.createElement("div");
+            messageAlertMessage.className = "d-block";
+            messageAlertMessage.innerHTML = data.descricao;
+
+            var messageDt = document.createElement("small");
+            messageDt.className = "text-info";
+            messageDt.textContent = formatDate(data.datetime);
+
+            messageAlert.appendChild(messageAlertMessage);
+            messageCol.appendChild(messageUser);
+            messageCol.appendChild(messageAlert);
+            messageCol.appendChild(messageDt);
+            message.appendChild(messageCol);
+            console.log(message);
+            document.getElementById("chat").appendChild(message);
+            objDiv.scrollTop = objDiv.scrollHeight;
+        });
+
+        connection.start().then(function () {
+            connection.invoke("JoinPrivate", targetname);
+            document.getElementById("SendMessageForm").addEventListener("submit", function (event) {
+                event.preventDefault();
+
+                var value = document.getElementById("MessageText").value;
+                if (value.lenght === 0 || !value.trim()) {
+                    return false;
+                }
+
+                var data = {
+                    Descricao: value,
+                    UserName: username,
+                    TargetName: targetname
+                }
+
+                document.getElementById("MessageText").value = "";
+                connection.invoke("SendPrivateMessage", data).catch(function (err) {
+                    return console.error(err.toString());
+                });
+            });
+        }).catch(function (err) {
+            return console.error(err.toString());
+        });
+
+        window.addEventListener("unload", function () {
+            connection.invoke("LeavePrivate", targetname);
+        })
+    </script>
+}

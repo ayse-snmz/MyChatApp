@@ -1,0 +1,13 @@
+﻿@using Microsoft.AspNetCore.Identity
+@model List<IdentityUser>
+
+<h2>Kişiler</h2>
+<ul class="list-group">
+    @foreach (IdentityUser user in Model)
+    {
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+            @user.UserName
+            <a asp-action="PrivateMessage" asp-route-id="@user.UserName" class="btn btn-info">Mesaj Gönder</a>
+        </li>
+    }
+</ul>
